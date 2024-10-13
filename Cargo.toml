@@ -1,0 +1,14 @@
+[package]
+name = "deltactl"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.5.20", features = ["derive"] }
+deltalake = "0.20.1"
+tokio = "1.40.0"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
