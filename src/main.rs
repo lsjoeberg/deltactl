@@ -11,17 +11,27 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Optimize an existing table.
-    Optimize {
+    /// Optimize a table with Compaction.
+    Compact {
         #[clap(flatten)]
         location: TableUri,
     },
-    /// Vacuum an existing table.
+    /// Optimize a table with Z-Ordering.
+    #[clap(name = "zorder")]
+    ZOrder {
+        #[clap(flatten)]
+        location: TableUri,
+
+        /// Comma-separated list of columns to order on.
+        #[arg(long, short, required = true, num_args = 1.., value_delimiter = ',')]
+        columns: Vec<String>,
+    },
+    /// Vacuum table files marked for removal.
     Vacuum {
         #[clap(flatten)]
         location: TableUri,
     },
-    /// Get schema of an existing table.
+    /// Get the schema of a table.
     Schema {
         #[clap(flatten)]
         location: TableUri,
@@ -49,8 +59,11 @@ async fn main() {
     dbg!("{:?}", &cli);
 
     match cli.cmd {
-        Command::Optimize { location } => {
-            delta::optimize(location.url).await.unwrap();
+        Command::Compact { location } => {
+            delta::compact(location.url).await.unwrap();
+        }
+        Command::ZOrder { location, columns } => {
+            delta::zorder(location.url, columns).await.unwrap();
         }
         Command::Vacuum { location } => {
             delta::vacuum(location.url).await.unwrap();
