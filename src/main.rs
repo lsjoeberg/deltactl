@@ -56,20 +56,15 @@ fn verify_uri(input: &str) -> Result<Url, DeltaTableError> {
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
-    dbg!("{:?}", &cli);
 
-    match cli.cmd {
-        Command::Compact { location } => {
-            delta::compact(location.url).await.unwrap();
-        }
-        Command::ZOrder { location, columns } => {
-            delta::zorder(location.url, columns).await.unwrap();
-        }
-        Command::Vacuum { location } => {
-            delta::vacuum(location.url).await.unwrap();
-        }
-        Command::Schema { location } => {
-            delta::schema(location.url).await.unwrap();
-        }
+    let result = match cli.cmd {
+        Command::Compact { location } => delta::compact(location.url).await,
+        Command::ZOrder { location, columns } => delta::zorder(location.url, columns).await,
+        Command::Vacuum { location } => delta::vacuum(location.url).await,
+        Command::Schema { location } => delta::schema(location.url).await,
+    };
+
+    if let Err(err) = result {
+        eprintln!("{err}");
     }
 }
