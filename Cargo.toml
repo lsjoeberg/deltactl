@@ -7,6 +7,7 @@ edition = "2021"
 clap = { version = "4.5.20", features = ["derive"] }
 deltalake = "0.20.1"
 tokio = "1.40.0"
+url = "2.5.2"
 
 [profile.release]
 strip = true

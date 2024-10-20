@@ -681,6 +681,7 @@ dependencies = [
  "clap",
  "deltalake",
  "tokio",
+ "url",
 ]
 
 [[package]]
