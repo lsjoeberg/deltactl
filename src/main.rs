@@ -20,6 +20,11 @@ enum Command {
         /// URI pointing to the table storage.
         uri: String,
     },
+    /// Get schema of an existing table.
+    Schema {
+        /// URI pointing to the table storage.
+        uri: String
+    },
 }
 
 #[tokio::main]
@@ -33,6 +38,9 @@ async fn main() {
         }
         Command::Vacuum { uri } => {
             delta::vacuum(uri).await.unwrap();
+        }
+        Command::Schema { uri } => {
+            delta::schema(uri).await.unwrap();
         }
     }
 }

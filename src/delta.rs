@@ -21,3 +21,15 @@ pub async fn vacuum(uri: impl AsRef<str>) -> Result<(), DeltaTableError> {
 
     Ok(())
 }
+
+pub async fn schema(uri: impl AsRef<str>) -> Result<(), DeltaTableError> {
+    let table = deltalake::open_table(uri).await?;
+
+    match table.schema() {
+        // TODO: Serialize to JSON instead of printing Rust types.
+        Some(schema) => println!("schema: {schema:#?}"),
+        None => println!("no metadata found in the log for table: {table:#?}"),
+    }
+
+    Ok(())
+}
