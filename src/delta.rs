@@ -1,3 +1,4 @@
+use chrono::Duration;
 use deltalake::{operations::optimize::OptimizeType, DeltaOps, DeltaTableError};
 
 pub async fn compact(uri: impl AsRef<str>) -> Result<(), DeltaTableError> {
@@ -24,12 +25,26 @@ pub async fn zorder(uri: impl AsRef<str>, columns: Vec<String>) -> Result<(), De
     Ok(())
 }
 
-pub async fn vacuum(uri: impl AsRef<str>) -> Result<(), DeltaTableError> {
+pub struct VacuumOptions {
+    pub enforce_retention: bool,
+    pub retention_period: Option<Duration>,
+    pub dry_run: bool,
+}
+
+pub async fn vacuum(uri: impl AsRef<str>, options: VacuumOptions) -> Result<(), DeltaTableError> {
     let table = deltalake::open_table(uri).await?;
     let ops = DeltaOps(table);
 
-    // TODO: Configure vacuum properties: `.with_...`
-    let (table, metrics) = ops.vacuum().await?;
+    // TODO: Allow control of commit behaviour.
+    let mut builder = ops
+        .vacuum()
+        .with_enforce_retention_duration(options.enforce_retention)
+        .with_dry_run(options.dry_run);
+    if let Some(days) = options.retention_period {
+        builder = builder.with_retention_period(days);
+    }
+
+    let (table, metrics) = builder.await?;
     println!("vacuumed table: {table:#?}\n{metrics:#?}");
 
     Ok(())

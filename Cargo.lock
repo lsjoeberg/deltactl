@@ -678,6 +678,7 @@ dependencies = [
 name = "deltactl"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "clap",
  "deltalake",
  "tokio",
