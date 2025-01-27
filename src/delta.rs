@@ -48,11 +48,16 @@ pub async fn vacuum(table: DeltaTable, options: VacuumOptions) -> Result<(), Del
 }
 
 pub fn schema(table: &DeltaTable) -> Result<(), DeltaTableError> {
-    match table.schema() {
-        // TODO: Serialize to JSON instead of printing Rust types.
-        Some(schema) => println!("schema: {schema:#?}"),
-        None => println!("no metadata found in the log for table: {table:#?}"),
+    if let Some(schema) = table.schema() {
+        println!("{}", serde_json::to_string_pretty(schema)?);
     }
+
+    Ok(())
+}
+
+pub fn metadata(table: &DeltaTable) -> Result<(), DeltaTableError> {
+    let metadata = table.metadata()?;
+    println!("{}", serde_json::to_string_pretty(metadata)?);
 
     Ok(())
 }

@@ -19,32 +19,27 @@ impl Cli {
 #[derive(Debug, Subcommand)]
 enum Command {
     /// Optimize a table with Compaction.
-    Compact(CompactArgs),
+    Compact(EmptyArgs),
     /// Optimize a table with Z-Ordering.
     #[clap(name = "zorder")]
     ZOrder(ZOrderArgs),
     /// Vacuum table files marked for removal.
     Vacuum(VacuumArgs),
-    /// Get the schema of a table.
-    Schema(SchemaArgs),
+    /// Print the schema of a table.
+    Schema(EmptyArgs),
+    /// Print the metadata for a table.
+    Metadata(EmptyArgs),
 }
 
 impl Command {
     /// Get the required URI argument passed to any of the sub-commands.
     fn get_uri(&self) -> &Url {
         match self {
-            Self::Compact(args) => &args.location.url,
             Self::ZOrder(args) => &args.location.url,
             Self::Vacuum(args) => &args.location.url,
-            Self::Schema(args) => &args.location.url,
+            Self::Compact(args) | Self::Schema(args) | Self::Metadata(args) => &args.location.url,
         }
     }
-}
-
-#[derive(Debug, Args)]
-struct CompactArgs {
-    #[clap(flatten)]
-    location: TableUri,
 }
 
 #[derive(Debug, Args)]
@@ -72,7 +67,7 @@ pub struct VacuumArgs {
 }
 
 #[derive(Debug, Args)]
-struct SchemaArgs {
+struct EmptyArgs {
     #[clap(flatten)]
     location: TableUri,
 }
@@ -111,6 +106,7 @@ async fn run(cli: Cli) -> Result<(), DeltaTableError> {
             delta::vacuum(table, options).await?;
         }
         Command::Schema(_) => delta::schema(&table)?,
+        Command::Metadata(_) => delta::metadata(&table)?,
     }
 
     Ok(())
