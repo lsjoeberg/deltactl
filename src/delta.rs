@@ -1,8 +1,7 @@
 use chrono::Duration;
-use deltalake::{operations::optimize::OptimizeType, DeltaOps, DeltaTableError};
+use deltalake::{operations::optimize::OptimizeType, DeltaOps, DeltaTable, DeltaTableError};
 
-pub async fn compact(uri: impl AsRef<str>) -> Result<(), DeltaTableError> {
-    let table = deltalake::open_table(uri).await?;
+pub async fn compact(table: DeltaTable) -> Result<(), DeltaTableError> {
     let ops = DeltaOps(table);
 
     // TODO: Configure optimization properties: `.with_...`
@@ -13,8 +12,7 @@ pub async fn compact(uri: impl AsRef<str>) -> Result<(), DeltaTableError> {
     Ok(())
 }
 
-pub async fn zorder(uri: impl AsRef<str>, columns: Vec<String>) -> Result<(), DeltaTableError> {
-    let table = deltalake::open_table(uri).await?;
+pub async fn zorder(table: DeltaTable, columns: Vec<String>) -> Result<(), DeltaTableError> {
     let ops = DeltaOps(table);
 
     // TODO: Configure optimization properties: `.with_...`
@@ -31,8 +29,7 @@ pub struct VacuumOptions {
     pub dry_run: bool,
 }
 
-pub async fn vacuum(uri: impl AsRef<str>, options: VacuumOptions) -> Result<(), DeltaTableError> {
-    let table = deltalake::open_table(uri).await?;
+pub async fn vacuum(table: DeltaTable, options: VacuumOptions) -> Result<(), DeltaTableError> {
     let ops = DeltaOps(table);
 
     // TODO: Allow control of commit behaviour.
@@ -50,9 +47,7 @@ pub async fn vacuum(uri: impl AsRef<str>, options: VacuumOptions) -> Result<(), 
     Ok(())
 }
 
-pub async fn schema(uri: impl AsRef<str>) -> Result<(), DeltaTableError> {
-    let table = deltalake::open_table(uri).await?;
-
+pub fn schema(table: &DeltaTable) -> Result<(), DeltaTableError> {
     match table.schema() {
         // TODO: Serialize to JSON instead of printing Rust types.
         Some(schema) => println!("schema: {schema:#?}"),
