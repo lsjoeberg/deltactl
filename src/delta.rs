@@ -1,5 +1,6 @@
 use chrono::Duration;
 use deltalake::{operations::optimize::OptimizeType, DeltaOps, DeltaTable, DeltaTableError};
+use std::io::Write;
 
 pub async fn compact(table: DeltaTable) -> Result<(), DeltaTableError> {
     let ops = DeltaOps(table);
@@ -7,7 +8,11 @@ pub async fn compact(table: DeltaTable) -> Result<(), DeltaTableError> {
     // TODO: Configure optimization properties: `.with_...`
     let opt_builder = ops.optimize().with_type(OptimizeType::Compact);
     let (table, metrics) = opt_builder.await?;
-    println!("optimized table: {table:#?}\n{metrics:#?}");
+    println!(
+        "compact operation complete for table: '{}'",
+        table.table_uri()
+    );
+    println!("{}", serde_json::to_string_pretty(&metrics)?);
 
     Ok(())
 }
@@ -18,7 +23,12 @@ pub async fn zorder(table: DeltaTable, columns: Vec<String>) -> Result<(), Delta
     // TODO: Configure optimization properties: `.with_...`
     let opt_builder = ops.optimize().with_type(OptimizeType::ZOrder(columns));
     let (table, metrics) = opt_builder.await?;
-    println!("optimized table: {table:#?}\n{metrics:#?}");
+
+    println!(
+        "zorder operation complete for table: '{}'",
+        table.table_uri()
+    );
+    println!("{}", serde_json::to_string_pretty(&metrics)?);
 
     Ok(())
 }
@@ -27,6 +37,7 @@ pub struct VacuumOptions {
     pub enforce_retention: bool,
     pub retention_period: Option<Duration>,
     pub dry_run: bool,
+    pub print_files: bool,
 }
 
 pub async fn vacuum(table: DeltaTable, options: VacuumOptions) -> Result<(), DeltaTableError> {
@@ -42,7 +53,20 @@ pub async fn vacuum(table: DeltaTable, options: VacuumOptions) -> Result<(), Del
     }
 
     let (table, metrics) = builder.await?;
-    println!("vacuumed table: {table:#?}\n{metrics:#?}");
+
+    println!(
+        "vacuum operation complete for table: '{}'",
+        table.table_uri()
+    );
+    println!("dry run: {}", metrics.dry_run);
+    println!("files deleted: {}", metrics.files_deleted.len());
+
+    if options.print_files {
+        let mut stdout = std::io::stdout().lock();
+        for file in metrics.files_deleted {
+            writeln!(stdout, "{file}")?;
+        }
+    }
 
     Ok(())
 }

@@ -64,6 +64,8 @@ pub struct VacuumArgs {
     /// Only determine which files can be deleted.
     #[arg(long)]
     pub dry_run: bool,
+    #[arg(long)]
+    pub print_files: bool,
 }
 
 #[derive(Debug, Args)]
@@ -102,6 +104,7 @@ async fn run(cli: Cli) -> Result<(), DeltaTableError> {
                 enforce_retention: !args.no_enforce_retention,
                 retention_period,
                 dry_run: args.dry_run,
+                print_files: args.print_files,
             };
             delta::vacuum(table, options).await?;
         }
