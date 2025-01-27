@@ -92,16 +92,13 @@ fn verify_uri(input: &str) -> Result<Url, DeltaTableError> {
     Ok(url)
 }
 
-#[tokio::main]
-async fn main() {
-    let cli = Cli::parse();
-
+async fn run(cli: Cli) -> Result<(), DeltaTableError> {
     let uri = cli.get_uri();
-    let table = deltalake::open_table(uri).await.unwrap();
+    let table = deltalake::open_table(uri).await?;
 
-    let result = match cli.cmd {
-        Command::Compact(_) => delta::compact(table).await,
-        Command::ZOrder(args) => delta::zorder(table, args.columns).await,
+    match cli.cmd {
+        Command::Compact(_) => delta::compact(table).await?,
+        Command::ZOrder(args) => delta::zorder(table, args.columns).await?,
         Command::Vacuum(args) => {
             let retention_period = args
                 .retention_days
@@ -111,12 +108,19 @@ async fn main() {
                 retention_period,
                 dry_run: args.dry_run,
             };
-            delta::vacuum(table, options).await
+            delta::vacuum(table, options).await?;
         }
-        Command::Schema(_) => delta::schema(&table).await,
-    };
+        Command::Schema(_) => delta::schema(&table)?,
+    }
 
-    if let Err(err) = result {
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() {
+    let cli = Cli::parse();
+    if let Err(err) = run(cli).await {
         eprintln!("{err}");
+        std::process::exit(1);
     }
 }

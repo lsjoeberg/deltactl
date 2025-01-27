@@ -47,7 +47,7 @@ pub async fn vacuum(table: DeltaTable, options: VacuumOptions) -> Result<(), Del
     Ok(())
 }
 
-pub async fn schema(table: &DeltaTable) -> Result<(), DeltaTableError> {
+pub fn schema(table: &DeltaTable) -> Result<(), DeltaTableError> {
     match table.schema() {
         // TODO: Serialize to JSON instead of printing Rust types.
         Some(schema) => println!("schema: {schema:#?}"),
