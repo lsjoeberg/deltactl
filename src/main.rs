@@ -19,7 +19,7 @@ impl Cli {
 #[derive(Debug, Subcommand)]
 enum Command {
     /// Optimize a table with Compaction.
-    Compact(EmptyArgs),
+    Compact(CompactArgs),
     /// Optimize a table with Z-Ordering.
     #[clap(name = "zorder")]
     ZOrder(ZOrderArgs),
@@ -35,11 +35,20 @@ impl Command {
     /// Get the required URI argument passed to any of the sub-commands.
     fn get_uri(&self) -> &Url {
         match self {
+            Self::Compact(args) => &args.location.url,
             Self::ZOrder(args) => &args.location.url,
             Self::Vacuum(args) => &args.location.url,
-            Self::Compact(args) | Self::Schema(args) | Self::Metadata(args) => &args.location.url,
+            Self::Schema(args) | Self::Metadata(args) => &args.location.url,
         }
     }
+}
+
+#[derive(Debug, Args)]
+struct CompactArgs {
+    #[clap(flatten)]
+    location: TableUri,
+    #[clap(flatten)]
+    options: OptimizeArgs,
 }
 
 #[derive(Debug, Args)]
@@ -49,6 +58,42 @@ struct ZOrderArgs {
     /// Comma-separated list of columns to order on.
     #[arg(long, short, required = true, num_args = 1.., value_delimiter = ',')]
     columns: Vec<String>,
+    #[clap(flatten)]
+    options: OptimizeArgs,
+}
+
+#[derive(Debug, Args)]
+struct OptimizeArgs {
+    /// Target file size (bytes).
+    #[arg(long)]
+    target_size: Option<i64>,
+    /// Max spill size (bytes).
+    #[arg(long)]
+    max_spill_size: Option<usize>,
+    /// Max number of concurrent tasks.
+    #[arg(long)]
+    max_concurrent_tasks: Option<usize>,
+    /// Whether to preserve insertion order within files.
+    #[arg(long)]
+    preserve_insertion_order: bool,
+    /// Min commit interval; e.g. 2min
+    ///
+    /// Commit transaction incrementally, instead of a single commit.
+    #[arg(long)]
+    min_commit_interval: Option<humantime::Duration>,
+    // TODO: Partition filters.
+}
+
+impl From<OptimizeArgs> for delta::OptimizeOptions {
+    fn from(value: OptimizeArgs) -> Self {
+        Self {
+            target_size: value.target_size,
+            max_spill_size: value.max_spill_size,
+            max_concurrent_tasks: value.max_concurrent_tasks,
+            preserve_insertion_order: Some(value.preserve_insertion_order), // clap opt is a flag
+            min_commit_interval: value.min_commit_interval.map(Into::into),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Args)]
@@ -89,13 +134,17 @@ fn verify_uri(input: &str) -> Result<Url, DeltaTableError> {
     Ok(url)
 }
 
-async fn run(cli: Cli) -> Result<(), DeltaTableError> {
+async fn run(cli: Cli) -> anyhow::Result<()> {
     let uri = cli.get_uri();
     let table = deltalake::open_table(uri).await?;
 
     match cli.cmd {
-        Command::Compact(_) => delta::compact(table).await?,
-        Command::ZOrder(args) => delta::zorder(table, args.columns).await?,
+        Command::Compact(args) => {
+            delta::compact(table, args.options.into()).await?;
+        }
+        Command::ZOrder(args) => {
+            delta::zorder(table, args.columns, args.options.into()).await?;
+        }
         Command::Vacuum(args) => {
             let retention_period = args
                 .retention_days
