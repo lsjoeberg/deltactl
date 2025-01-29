@@ -4,6 +4,7 @@ use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
 use deltactl::delta;
 use deltalake::{table::builder::ensure_table_uri, DeltaTableError};
+use std::collections::HashMap;
 use url::Url;
 
 #[derive(Debug, Parser)]
@@ -28,6 +29,8 @@ enum Command {
     ZOrder(ZOrderArgs),
     /// Vacuum table files marked for removal.
     Vacuum(VacuumArgs),
+    /// Set table properties.
+    Configure(ConfigureArgs),
     /// Create a new checkpoint at current table version.
     Checkpoint(EmptyArgs),
     /// Delete expired log files before current table version.
@@ -48,6 +51,7 @@ impl Command {
             Self::Compact(args) => &args.location.url,
             Self::ZOrder(args) => &args.location.url,
             Self::Vacuum(args) => &args.location.url,
+            Self::Configure(args) => &args.location.url,
             Self::Checkpoint(args)
             | Self::Expire(args)
             | Self::Schema(args)
@@ -127,6 +131,26 @@ pub struct VacuumArgs {
     pub print_files: bool,
 }
 
+#[derive(Debug, Clone, Args)]
+pub struct ConfigureArgs {
+    #[clap(flatten)]
+    location: TableUri,
+    /// Delta table key-value property pairs.
+    ///
+    /// Repeat the option for each pair: -p a=1 -p b=2
+    ///
+    /// See properties at https://docs.delta.io/latest/table-properties.html
+    #[clap(short, number_of_values = 1, value_parser = parse_key_val)]
+    properties: Vec<(String, String)>,
+}
+
+fn parse_key_val(s: &str) -> Result<(String, String), anyhow::Error> {
+    let pos = s
+        .find('=')
+        .ok_or_else(|| anyhow::anyhow!("invalid KEY=value: no `=` found in `{}`", s))?;
+    Ok((s[..pos].to_string(), s[pos + 1..].to_string()))
+}
+
 #[derive(Debug, Args)]
 struct EmptyArgs {
     #[clap(flatten)]
@@ -176,6 +200,10 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         }
         Command::Checkpoint(_) => delta::create_checkpoint(&table).await?,
         Command::Expire(_) => delta::expire_logs(&table).await?,
+        Command::Configure(args) => {
+            let properties = args.properties.into_iter().collect::<HashMap<_, _>>();
+            delta::set_properties(table, properties).await?;
+        }
         Command::Schema(_) => delta::schema(&table)?,
         Command::Metadata(_) => delta::metadata(&table)?,
     }
