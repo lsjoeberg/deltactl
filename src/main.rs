@@ -1,3 +1,4 @@
+use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
 use deltactl::delta;
 use deltalake::{table::builder::ensure_table_uri, DeltaTableError};
@@ -102,7 +103,7 @@ pub struct VacuumArgs {
     location: TableUri,
     /// Override the default retention period for which files are deleted.
     #[arg(long)]
-    pub retention_days: Option<u32>,
+    pub retention_period: Option<humantime::Duration>,
     /// Don't enforce the retention period.
     #[arg(long)]
     pub no_enforce_retention: bool,
@@ -146,9 +147,12 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
             delta::zorder(table, args.columns, args.options.into()).await?;
         }
         Command::Vacuum(args) => {
+            // Convert `std::time::Duration` to `chrono::Duration`.
             let retention_period = args
-                .retention_days
-                .map(|days| chrono::Duration::days(days.into()));
+                .retention_period
+                .map(|d| chrono::Duration::from_std(*d).context("invalid retention period"))
+                .transpose()?;
+
             let options = delta::VacuumOptions {
                 enforce_retention: !args.no_enforce_retention,
                 retention_period,

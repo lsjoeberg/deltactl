@@ -1,4 +1,3 @@
-use chrono::Duration;
 use deltalake::{
     operations::optimize::{OptimizeBuilder, OptimizeType},
     DeltaOps, DeltaTable, DeltaTableError,
@@ -76,7 +75,7 @@ pub async fn zorder(
 
 pub struct VacuumOptions {
     pub enforce_retention: bool,
-    pub retention_period: Option<Duration>,
+    pub retention_period: Option<chrono::Duration>,
     pub dry_run: bool,
     pub print_files: bool,
 }
@@ -89,8 +88,8 @@ pub async fn vacuum(table: DeltaTable, options: VacuumOptions) -> Result<(), Del
         .vacuum()
         .with_enforce_retention_duration(options.enforce_retention)
         .with_dry_run(options.dry_run);
-    if let Some(days) = options.retention_period {
-        builder = builder.with_retention_period(days);
+    if let Some(retention_period) = options.retention_period {
+        builder = builder.with_retention_period(retention_period);
     }
 
     let (table, metrics) = builder.await?;
