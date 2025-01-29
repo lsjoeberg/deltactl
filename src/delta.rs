@@ -1,5 +1,6 @@
 use deltalake::{
     operations::optimize::{OptimizeBuilder, OptimizeType},
+    protocol::ProtocolError,
     DeltaOps, DeltaTable, DeltaTableError,
 };
 use std::io::Write;
@@ -123,5 +124,10 @@ pub fn metadata(table: &DeltaTable) -> Result<(), DeltaTableError> {
     let metadata = table.metadata()?;
     println!("{}", serde_json::to_string_pretty(metadata)?);
 
+    Ok(())
+}
+
+pub async fn create_checkpoint(table: &DeltaTable) -> Result<(), ProtocolError> {
+    deltalake::protocol::checkpoints::create_checkpoint(table).await?;
     Ok(())
 }
