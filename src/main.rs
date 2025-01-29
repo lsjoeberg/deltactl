@@ -12,7 +12,7 @@ struct Cli {
 
 impl Cli {
     /// Get the URI argument passed to a subcommand.
-    fn get_uri(&self) -> &Url {
+    const fn get_uri(&self) -> &Url {
         self.cmd.get_uri()
     }
 }
@@ -34,7 +34,7 @@ enum Command {
 
 impl Command {
     /// Get the required URI argument passed to any of the sub-commands.
-    fn get_uri(&self) -> &Url {
+    const fn get_uri(&self) -> &Url {
         match self {
             Self::Compact(args) => &args.location.url,
             Self::ZOrder(args) => &args.location.url,
