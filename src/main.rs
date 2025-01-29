@@ -30,6 +30,11 @@ enum Command {
     Vacuum(VacuumArgs),
     /// Create a new checkpoint at current table version.
     Checkpoint(EmptyArgs),
+    /// Delete expired log files before current table version.
+    ///
+    /// The table log retention is based on the `logRetentionDuration`
+    /// property of the table, 30 days by default.
+    Expire(EmptyArgs),
     /// Print the schema of a table.
     Schema(EmptyArgs),
     /// Print the metadata for a table.
@@ -43,9 +48,10 @@ impl Command {
             Self::Compact(args) => &args.location.url,
             Self::ZOrder(args) => &args.location.url,
             Self::Vacuum(args) => &args.location.url,
-            Self::Checkpoint(args) | Self::Schema(args) | Self::Metadata(args) => {
-                &args.location.url
-            }
+            Self::Checkpoint(args)
+            | Self::Expire(args)
+            | Self::Schema(args)
+            | Self::Metadata(args) => &args.location.url,
         }
     }
 }
@@ -169,6 +175,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
             delta::vacuum(table, options).await?;
         }
         Command::Checkpoint(_) => delta::create_checkpoint(&table).await?,
+        Command::Expire(_) => delta::expire_logs(&table).await?,
         Command::Schema(_) => delta::schema(&table)?,
         Command::Metadata(_) => delta::metadata(&table)?,
     }

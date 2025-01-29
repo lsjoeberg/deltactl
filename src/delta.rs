@@ -131,3 +131,8 @@ pub async fn create_checkpoint(table: &DeltaTable) -> Result<(), ProtocolError> 
     deltalake::protocol::checkpoints::create_checkpoint(table).await?;
     Ok(())
 }
+
+pub async fn expire_logs(table: &DeltaTable) -> Result<(), ProtocolError> {
+    deltalake::protocol::checkpoints::cleanup_metadata(table).await?;
+    Ok(())
+}
