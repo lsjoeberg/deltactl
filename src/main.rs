@@ -110,6 +110,7 @@ pub struct VacuumArgs {
     /// Only determine which files can be deleted.
     #[arg(long)]
     pub dry_run: bool,
+    /// Whether to print deleted files.
     #[arg(long)]
     pub print_files: bool,
 }
