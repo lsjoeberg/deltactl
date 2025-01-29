@@ -1,3 +1,5 @@
+#![warn(clippy::all, clippy::pedantic, clippy::nursery)]
+
 use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
 use deltactl::delta;
