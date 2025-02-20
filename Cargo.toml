@@ -14,6 +14,9 @@ tokio = "1.40.0"
 url = "2.5.2"
 anyhow = "1.0.95"
 
+[features]
+azure = [ "deltalake/azure" ]
+
 [profile.release]
 strip = true
 lto = true
