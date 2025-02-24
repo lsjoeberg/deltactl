@@ -16,6 +16,7 @@ anyhow = "1.0.95"
 
 [features]
 azure = [ "deltalake/azure" ]
+s3 = [ "deltalake/s3" ]
 
 [profile.release]
 strip = true
