@@ -131,6 +131,26 @@ pub struct VacuumArgs {
     pub print_files: bool,
 }
 
+impl TryFrom<VacuumArgs> for delta::VacuumOptions {
+    type Error = anyhow::Error;
+
+    fn try_from(value: VacuumArgs) -> Result<Self, Self::Error> {
+        // Convert the `std::time::Duration`, used for parsed arg, to `chrono::Duration`,
+        // used in the delta API.
+        let retention_period = value
+            .retention_period
+            .map(|d| chrono::Duration::from_std(*d).context("invalid retention period"))
+            .transpose()?;
+
+        Ok(Self {
+            enforce_retention: !value.no_enforce_retention,
+            retention_period,
+            dry_run: value.dry_run,
+            print_files: value.print_files,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Args)]
 pub struct ConfigureArgs {
     #[clap(flatten)]
@@ -139,6 +159,7 @@ pub struct ConfigureArgs {
     ///
     /// Repeat the option for each pair: -p a=1 -p b=2
     ///
+    #[allow(clippy::doc_markdown)]
     /// See properties at https://docs.delta.io/latest/table-properties.html
     #[clap(short, number_of_values = 1, value_parser = parse_key_val)]
     properties: Vec<(String, String)>,
@@ -184,26 +205,14 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
             delta::zorder(table, args.columns, args.options.into()).await?;
         }
         Command::Vacuum(args) => {
-            // Convert `std::time::Duration` to `chrono::Duration`.
-            let retention_period = args
-                .retention_period
-                .map(|d| chrono::Duration::from_std(*d).context("invalid retention period"))
-                .transpose()?;
-
-            let options = delta::VacuumOptions {
-                enforce_retention: !args.no_enforce_retention,
-                retention_period,
-                dry_run: args.dry_run,
-                print_files: args.print_files,
-            };
-            delta::vacuum(table, options).await?;
+            delta::vacuum(table, args.try_into()?).await?;
         }
-        Command::Checkpoint(_) => delta::create_checkpoint(&table).await?,
-        Command::Expire(_) => delta::expire_logs(&table).await?,
         Command::Configure(args) => {
             let properties = args.properties.into_iter().collect::<HashMap<_, _>>();
             delta::set_properties(table, properties).await?;
         }
+        Command::Checkpoint(_) => delta::create_checkpoint(&table).await?,
+        Command::Expire(_) => delta::expire_logs(&table).await?,
         Command::Schema(_) => delta::schema(&table)?,
         Command::Metadata(_) => delta::metadata(&table)?,
     }
