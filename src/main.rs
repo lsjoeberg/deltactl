@@ -159,6 +159,7 @@ pub struct ConfigureArgs {
     ///
     /// Repeat the option for each pair: -p a=1 -p b=2
     ///
+    #[allow(clippy::doc_markdown)]
     /// See properties at https://docs.delta.io/latest/table-properties.html
     #[clap(short, number_of_values = 1, value_parser = parse_key_val)]
     properties: Vec<(String, String)>,
