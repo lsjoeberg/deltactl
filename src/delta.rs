@@ -1,7 +1,9 @@
 use deltalake::{
     operations::optimize::{OptimizeBuilder, OptimizeType},
+    protocol::ProtocolError,
     DeltaOps, DeltaTable, DeltaTableError,
 };
+use std::collections::HashMap;
 use std::io::Write;
 
 /// Supported options for `optimize` operations: [`compact`] and [`zorder`].
@@ -122,6 +124,38 @@ pub fn schema(table: &DeltaTable) -> Result<(), DeltaTableError> {
 pub fn metadata(table: &DeltaTable) -> Result<(), DeltaTableError> {
     let metadata = table.metadata()?;
     println!("{}", serde_json::to_string_pretty(metadata)?);
+
+    Ok(())
+}
+
+pub async fn create_checkpoint(table: &DeltaTable) -> Result<(), ProtocolError> {
+    deltalake::protocol::checkpoints::create_checkpoint(table).await?;
+    Ok(())
+}
+
+pub async fn expire_logs(table: &DeltaTable) -> Result<(), ProtocolError> {
+    deltalake::protocol::checkpoints::cleanup_metadata(table).await?;
+    Ok(())
+}
+
+pub async fn set_properties(
+    table: DeltaTable,
+    properties: HashMap<String, String>,
+) -> Result<(), DeltaTableError> {
+    let ops = DeltaOps(table);
+
+    let builder = ops
+        .set_tbl_properties()
+        .with_properties(properties)
+        .with_raise_if_not_exists(true);
+
+    let table = builder.await?;
+    let new_config = &table.metadata()?.configuration;
+    println!(
+        "new properties for table: '{}'\n{}",
+        table.table_uri(),
+        serde_json::to_string_pretty(new_config)?
+    );
 
     Ok(())
 }
