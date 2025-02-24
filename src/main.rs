@@ -207,12 +207,12 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Vacuum(args) => {
             delta::vacuum(table, args.try_into()?).await?;
         }
-        Command::Checkpoint(_) => delta::create_checkpoint(&table).await?,
-        Command::Expire(_) => delta::expire_logs(&table).await?,
         Command::Configure(args) => {
             let properties = args.properties.into_iter().collect::<HashMap<_, _>>();
             delta::set_properties(table, properties).await?;
         }
+        Command::Checkpoint(_) => delta::create_checkpoint(&table).await?,
+        Command::Expire(_) => delta::expire_logs(&table).await?,
         Command::Schema(_) => delta::schema(&table)?,
         Command::Metadata(_) => delta::metadata(&table)?,
     }
