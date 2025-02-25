@@ -186,9 +186,12 @@ struct TableUri {
 }
 
 fn verify_uri(input: &str) -> Result<Url, DeltaTableError> {
-    // TODO: Register object store handlers per feature flags.
-    // deltalake::azure::register_handlers(None);
-    // deltalake::aws::register_handlers(None);
+    #[cfg(feature = "azure")]
+    deltalake::azure::register_handlers(None);
+    
+    #[cfg(feature = "s3")]
+    deltalake::aws::register_handlers(None);
+
     let url = ensure_table_uri(input)?;
     Ok(url)
 }
