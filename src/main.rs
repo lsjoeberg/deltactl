@@ -3,7 +3,8 @@
 use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
 use deltactl::delta;
-use deltalake::{table::builder::ensure_table_uri, DeltaTableError};
+use deltactl::parse;
+use deltalake::{table::builder::ensure_table_uri, DeltaTableError, PartitionFilter};
 use std::collections::HashMap;
 use url::Url;
 
@@ -98,17 +99,27 @@ struct OptimizeArgs {
     /// Commit transaction incrementally, instead of a single commit.
     #[arg(long)]
     min_commit_interval: Option<humantime::Duration>,
-    // TODO: Partition filters.
+    /// Partition filters; repeat option for each filter.
+    ///
+    /// Filters must reference partition columns only.
+    #[arg(long, short, number_of_values = 1, value_parser = parse_partition_filter)]
+    filters: Option<Vec<PartitionFilter>>,
 }
 
-impl From<OptimizeArgs> for delta::OptimizeOptions {
-    fn from(value: OptimizeArgs) -> Self {
+fn parse_partition_filter(s: &str) -> anyhow::Result<PartitionFilter> {
+    let res = parse::filter_condition(s)?;
+    Ok(PartitionFilter::try_from(res)?)
+}
+
+impl From<&OptimizeArgs> for delta::OptimizeOptions {
+    fn from(value: &OptimizeArgs) -> Self {
         Self {
             target_size: value.target_size,
             max_spill_size: value.max_spill_size,
             max_concurrent_tasks: value.max_concurrent_tasks,
             preserve_insertion_order: Some(value.preserve_insertion_order), // clap opt is a flag
             min_commit_interval: value.min_commit_interval.map(Into::into),
+            filters: value.filters.clone(),
         }
     }
 }
@@ -188,7 +199,7 @@ struct TableUri {
 fn verify_uri(input: &str) -> Result<Url, DeltaTableError> {
     #[cfg(feature = "azure")]
     deltalake::azure::register_handlers(None);
-    
+
     #[cfg(feature = "s3")]
     deltalake::aws::register_handlers(None);
 
@@ -202,10 +213,10 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
 
     match cli.cmd {
         Command::Compact(args) => {
-            delta::compact(table, args.options.into()).await?;
+            delta::compact(table, &(&args.options).into()).await?;
         }
         Command::ZOrder(args) => {
-            delta::zorder(table, args.columns, args.options.into()).await?;
+            delta::zorder(table, args.columns, &(&args.options).into()).await?;
         }
         Command::Vacuum(args) => {
             delta::vacuum(table, args.try_into()?).await?;
