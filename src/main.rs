@@ -72,8 +72,8 @@ struct CompactArgs {
 struct ZOrderArgs {
     #[clap(flatten)]
     location: TableUri,
-    /// Comma-separated list of columns to order on.
-    #[arg(long, short, required = true, num_args = 1.., value_delimiter = ',')]
+    /// Columns to order on; repeat option for each column.
+    #[arg(long, short, required = true, number_of_values = 1)]
     columns: Vec<String>,
     #[clap(flatten)]
     options: OptimizeArgs,
