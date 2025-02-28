@@ -1,7 +1,7 @@
 use deltalake::{
     operations::optimize::{OptimizeBuilder, OptimizeType},
     protocol::ProtocolError,
-    DeltaOps, DeltaTable, DeltaTableError,
+    DeltaOps, DeltaTable, DeltaTableError, PartitionFilter,
 };
 use std::collections::HashMap;
 use std::io::Write;
@@ -13,11 +13,12 @@ pub struct OptimizeOptions {
     pub max_concurrent_tasks: Option<usize>,
     pub preserve_insertion_order: Option<bool>,
     pub min_commit_interval: Option<std::time::Duration>,
+    pub filters: Option<Vec<PartitionFilter>>,
 }
 
-impl OptimizeOptions {
+impl<'a> OptimizeOptions {
     /// Configure an [`OptimizeBuilder`] with non-`None` option values.
-    fn configure(self, mut builder: OptimizeBuilder) -> OptimizeBuilder {
+    fn configure(&'a self, mut builder: OptimizeBuilder<'a>) -> OptimizeBuilder<'a> {
         if let Some(size) = self.target_size {
             builder = builder.with_target_size(size);
         }
@@ -33,12 +34,15 @@ impl OptimizeOptions {
         if let Some(min_commit_interval) = self.min_commit_interval {
             builder = builder.with_min_commit_interval(min_commit_interval);
         }
+        if let Some(ref filters) = self.filters {
+            builder = builder.with_filters(filters)
+        }
 
         builder
     }
 }
 
-pub async fn compact(table: DeltaTable, options: OptimizeOptions) -> Result<(), DeltaTableError> {
+pub async fn compact(table: DeltaTable, options: &OptimizeOptions) -> Result<(), DeltaTableError> {
     let ops = DeltaOps(table);
 
     let builder = ops.optimize().with_type(OptimizeType::Compact);
@@ -57,7 +61,7 @@ pub async fn compact(table: DeltaTable, options: OptimizeOptions) -> Result<(), 
 pub async fn zorder(
     table: DeltaTable,
     columns: Vec<String>,
-    options: OptimizeOptions,
+    options: &OptimizeOptions,
 ) -> Result<(), DeltaTableError> {
     let ops = DeltaOps(table);
 
@@ -65,7 +69,6 @@ pub async fn zorder(
     let builder = options.configure(builder);
 
     let (table, metrics) = builder.await?;
-
     println!(
         "zorder operation complete for table: '{}'",
         table.table_uri()
