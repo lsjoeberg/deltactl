@@ -11,6 +11,8 @@ use url::Url;
 struct Cli {
     #[command(subcommand)]
     pub cmd: Command,
+    #[arg(long, short = 'o', number_of_values = 1, value_parser = parse_key_val)]
+    pub storage_options: Option<Vec<(String, String)>>,
 }
 
 impl Cli {
@@ -188,7 +190,7 @@ struct TableUri {
 fn verify_uri(input: &str) -> Result<Url, DeltaTableError> {
     #[cfg(feature = "azure")]
     deltalake::azure::register_handlers(None);
-    
+
     #[cfg(feature = "s3")]
     deltalake::aws::register_handlers(None);
 
@@ -198,7 +200,14 @@ fn verify_uri(input: &str) -> Result<Url, DeltaTableError> {
 
 async fn run(cli: Cli) -> anyhow::Result<()> {
     let uri = cli.get_uri();
-    let table = deltalake::open_table(uri).await?;
+
+    let table = match &cli.storage_options {
+        Some(v) => {
+            let options = v.clone().into_iter().collect();
+            deltalake::open_table_with_storage_options(uri, options).await?
+        }
+        None => deltalake::open_table(uri).await?,
+    };
 
     match cli.cmd {
         Command::Compact(args) => {
