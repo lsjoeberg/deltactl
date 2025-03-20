@@ -1,3 +1,4 @@
+use chrono::DateTime;
 use deltalake::kernel::{Metadata, Protocol};
 use deltalake::{
     operations::optimize::{OptimizeBuilder, OptimizeType},
@@ -146,6 +147,37 @@ pub async fn details(table: &DeltaTable) -> Result<(), DeltaTableError> {
         protocol,
     };
     println!("{}", serde_json::to_string_pretty(&properties)?);
+    Ok(())
+}
+
+pub async fn history(
+    table: &DeltaTable,
+    limit: Option<usize>,
+    oneline: bool,
+) -> Result<(), DeltaTableError> {
+    let history = table.history(limit).await?;
+
+    if !oneline {
+        println!("{}", serde_json::to_string_pretty(&history)?);
+        return Ok(());
+    }
+
+    let mut stdout = std::io::stdout().lock();
+    println!(
+        "{:<19}  {:>10}  {:<12}",
+        "TIMESTAMP", "READ VER", "OPERATION"
+    );
+    for c in history {
+        let t =
+            DateTime::from_timestamp_millis(c.timestamp.unwrap_or_default()).unwrap_or_default();
+        writeln!(
+            stdout,
+            "{:<19}  {:>10}  {:<12}",
+            t.format("%Y-%m-%d %H:%M:%S"),
+            c.read_version.map(|v| v.to_string()).unwrap_or_default(),
+            c.operation.unwrap_or_default(),
+        )?;
+    }
     Ok(())
 }
 
