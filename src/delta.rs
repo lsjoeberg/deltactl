@@ -1,8 +1,10 @@
+use deltalake::kernel::{Metadata, Protocol};
 use deltalake::{
     operations::optimize::{OptimizeBuilder, OptimizeType},
     protocol::ProtocolError,
     DeltaOps, DeltaTable, DeltaTableError,
 };
+use serde::Serialize;
 use std::collections::HashMap;
 use std::io::Write;
 
@@ -121,10 +123,29 @@ pub fn schema(table: &DeltaTable) -> Result<(), DeltaTableError> {
     Ok(())
 }
 
-pub fn metadata(table: &DeltaTable) -> Result<(), DeltaTableError> {
-    let metadata = table.metadata()?;
-    println!("{}", serde_json::to_string_pretty(metadata)?);
+#[derive(Debug, Serialize)]
+struct TableProperties<'a> {
+    version: i64,
+    modified: Option<i64>,
+    metadata: &'a Metadata,
+    protocol: &'a Protocol,
+}
 
+pub async fn details(table: &DeltaTable) -> Result<(), DeltaTableError> {
+    let metadata = table.metadata()?;
+    let protocol = table.protocol()?;
+    let mtime = table
+        .history(Some(1))
+        .await?
+        .pop()
+        .and_then(|info| info.timestamp);
+    let properties = TableProperties {
+        version: table.version(),
+        modified: mtime,
+        metadata,
+        protocol,
+    };
+    println!("{}", serde_json::to_string_pretty(&properties)?);
     Ok(())
 }
 

@@ -42,8 +42,12 @@ enum Command {
     Expire(EmptyArgs),
     /// Print the schema of a table.
     Schema(EmptyArgs),
-    /// Print the metadata for a table.
-    Metadata(EmptyArgs),
+    /// Print the details for a table.
+    ///
+    /// This command will collect details of the table's current state,
+    /// including version, the timestamp of the latest commit, table
+    /// metadata, and protocol configuration.
+    Details(EmptyArgs),
 }
 
 impl Command {
@@ -57,7 +61,7 @@ impl Command {
             Self::Checkpoint(args)
             | Self::Expire(args)
             | Self::Schema(args)
-            | Self::Metadata(args) => &args.location.url,
+            | Self::Details(args) => &args.location.url,
         }
     }
 }
@@ -226,7 +230,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Checkpoint(_) => delta::create_checkpoint(&table).await?,
         Command::Expire(_) => delta::expire_logs(&table).await?,
         Command::Schema(_) => delta::schema(&table)?,
-        Command::Metadata(_) => delta::metadata(&table)?,
+        Command::Details(_) => delta::details(&table).await?,
     }
 
     Ok(())
