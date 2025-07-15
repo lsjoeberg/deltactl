@@ -150,6 +150,26 @@ pub async fn details(table: &DeltaTable) -> Result<(), DeltaTableError> {
     Ok(())
 }
 
+pub fn check_compatibility(table: DeltaTable) -> Result<(), DeltaTableError> {
+    let Some(state) = table.state else {
+        eprintln!("table has no state");
+        return Ok(());
+    };
+    let mut can_rw: bool = true;
+    if let Err(e) = deltalake::operations::transaction::PROTOCOL.can_read_from(&state) {
+        eprintln!("{e}");
+        can_rw = false;
+    }
+    if let Err(e) = deltalake::operations::transaction::PROTOCOL.can_write_to(&state) {
+        eprintln!("{e}");
+        can_rw = false;
+    }
+    if can_rw {
+        println!("Table is read and write compatible");
+    }
+    Ok(())
+}
+
 pub async fn history(
     table: &DeltaTable,
     limit: Option<usize>,
