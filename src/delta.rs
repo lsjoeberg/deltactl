@@ -1,8 +1,11 @@
+use chrono::DateTime;
+use deltalake::kernel::{Metadata, Protocol};
 use deltalake::{
     operations::optimize::{OptimizeBuilder, OptimizeType},
     protocol::ProtocolError,
     DeltaOps, DeltaTable, DeltaTableError,
 };
+use serde::Serialize;
 use std::collections::HashMap;
 use std::io::Write;
 
@@ -121,10 +124,60 @@ pub fn schema(table: &DeltaTable) -> Result<(), DeltaTableError> {
     Ok(())
 }
 
-pub fn metadata(table: &DeltaTable) -> Result<(), DeltaTableError> {
-    let metadata = table.metadata()?;
-    println!("{}", serde_json::to_string_pretty(metadata)?);
+#[derive(Debug, Serialize)]
+struct TableProperties<'a> {
+    version: i64,
+    modified: Option<i64>,
+    metadata: &'a Metadata,
+    protocol: &'a Protocol,
+}
 
+pub async fn details(table: &DeltaTable) -> Result<(), DeltaTableError> {
+    let metadata = table.metadata()?;
+    let protocol = table.protocol()?;
+    let mtime = table
+        .history(Some(1))
+        .await?
+        .pop()
+        .and_then(|info| info.timestamp);
+    let properties = TableProperties {
+        version: table.version(),
+        modified: mtime,
+        metadata,
+        protocol,
+    };
+    println!("{}", serde_json::to_string_pretty(&properties)?);
+    Ok(())
+}
+
+pub async fn history(
+    table: &DeltaTable,
+    limit: Option<usize>,
+    oneline: bool,
+) -> Result<(), DeltaTableError> {
+    let history = table.history(limit).await?;
+
+    if !oneline {
+        println!("{}", serde_json::to_string_pretty(&history)?);
+        return Ok(());
+    }
+
+    let mut stdout = std::io::stdout().lock();
+    println!(
+        "{:<19}  {:>10}  {:<12}",
+        "TIMESTAMP", "READ VER", "OPERATION"
+    );
+    for c in history {
+        let t =
+            DateTime::from_timestamp_millis(c.timestamp.unwrap_or_default()).unwrap_or_default();
+        writeln!(
+            stdout,
+            "{:<19}  {:>10}  {:<12}",
+            t.format("%Y-%m-%d %H:%M:%S"),
+            c.read_version.map(|v| v.to_string()).unwrap_or_default(),
+            c.operation.unwrap_or_default(),
+        )?;
+    }
     Ok(())
 }
 

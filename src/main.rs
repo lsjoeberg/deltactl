@@ -42,8 +42,14 @@ enum Command {
     Expire(EmptyArgs),
     /// Print the schema of a table.
     Schema(EmptyArgs),
-    /// Print the metadata for a table.
-    Metadata(EmptyArgs),
+    /// Print the details for a table.
+    ///
+    /// This command will collect details of the table's current state,
+    /// including version, the timestamp of the latest commit, table
+    /// metadata, and protocol configuration.
+    Details(EmptyArgs),
+    /// Print the commit history for a table.
+    History(HistoryArgs),
 }
 
 impl Command {
@@ -54,10 +60,11 @@ impl Command {
             Self::ZOrder(args) => &args.location.url,
             Self::Vacuum(args) => &args.location.url,
             Self::Configure(args) => &args.location.url,
+            Self::History(args) => &args.location.url,
             Self::Checkpoint(args)
             | Self::Expire(args)
             | Self::Schema(args)
-            | Self::Metadata(args) => &args.location.url,
+            | Self::Details(args) => &args.location.url,
         }
     }
 }
@@ -174,6 +181,21 @@ fn parse_key_val(s: &str) -> Result<(String, String), anyhow::Error> {
     Ok((s[..pos].to_string(), s[pos + 1..].to_string()))
 }
 
+#[derive(Debug, Clone, Args)]
+pub struct HistoryArgs {
+    #[clap(flatten)]
+    location: TableUri,
+    /// Limit number of commits to show back in time.
+    ///
+    /// If no limit is specified, the command will fetch information for
+    /// all commits in the table.
+    #[arg(long, short = 'n')]
+    limit: Option<usize>,
+    /// Display one line per commit in the table history.
+    #[arg(long)]
+    oneline: bool,
+}
+
 #[derive(Debug, Args)]
 struct EmptyArgs {
     #[clap(flatten)]
@@ -226,7 +248,8 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Checkpoint(_) => delta::create_checkpoint(&table).await?,
         Command::Expire(_) => delta::expire_logs(&table).await?,
         Command::Schema(_) => delta::schema(&table)?,
-        Command::Metadata(_) => delta::metadata(&table)?,
+        Command::Details(_) => delta::details(&table).await?,
+        Command::History(args) => delta::history(&table, args.limit, args.oneline).await?,
     }
 
     Ok(())
