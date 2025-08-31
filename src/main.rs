@@ -14,6 +14,13 @@ struct Cli {
     /// URI pointing to the table location.
     #[arg(long, short, global = true, value_parser = verify_uri, env = "DELTA_TABLE_URI")]
     uri: Option<Url>,
+    /// Explicit storage options for the cloud storage provider.
+    ///
+    /// Repeat the option for each pair: -o a=1 -o b=2
+    ///
+    /// The specific storage provider is derived from the table `uri`. The available options
+    /// are documented for each supported provider in the `object_store` crate, and can
+    /// be loaded from environment variables.
     #[arg(long, short = 'o', number_of_values = 1, value_parser = parse_key_val)]
     pub storage_options: Option<Vec<(String, String)>>,
 }
