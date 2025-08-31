@@ -48,6 +48,13 @@ enum Command {
     /// including version, the timestamp of the latest commit, table
     /// metadata, and protocol configuration.
     Details(EmptyArgs),
+    /// Check client read and write compatibility for a table.
+    ///
+    /// Some Deltalake tables may have protocol features enabled that are not yet
+    /// supported by the `delta-rs` client. This command checks whether the current
+    /// `delta-rs` implementation supports reading from and writing to the table,
+    /// given the table's protocol version tuple and enabled features.
+    CanRW(EmptyArgs),
     /// Print the commit history for a table.
     History(HistoryArgs),
 }
@@ -64,7 +71,8 @@ impl Command {
             Self::Checkpoint(args)
             | Self::Expire(args)
             | Self::Schema(args)
-            | Self::Details(args) => &args.location.url,
+            | Self::Details(args)
+            | Self::CanRW(args) => &args.location.url,
         }
     }
 }
@@ -249,6 +257,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Expire(_) => delta::expire_logs(&table).await?,
         Command::Schema(_) => delta::schema(&table)?,
         Command::Details(_) => delta::details(&table).await?,
+        Command::CanRW(_) => delta::check_compatibility(table)?,
         Command::History(args) => delta::history(&table, args.limit, args.oneline).await?,
     }
 
