@@ -1,23 +1,25 @@
 use chrono::DateTime;
 use deltalake::kernel::{Metadata, Protocol};
 use deltalake::{
-    operations::optimize::{OptimizeBuilder, OptimizeType},
-    protocol::ProtocolError,
     DeltaOps, DeltaTable, DeltaTableError,
 };
+#[cfg(feature = "optimize")]
+use deltalake::operations::optimize::{OptimizeBuilder, OptimizeType};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::io::Write;
 
+#[cfg(feature = "optimize")]
 /// Supported options for `optimize` operations: [`compact`] and [`zorder`].
 pub struct OptimizeOptions {
-    pub target_size: Option<i64>,
+    pub target_size: Option<u64>,
     pub max_spill_size: Option<usize>,
     pub max_concurrent_tasks: Option<usize>,
     pub preserve_insertion_order: Option<bool>,
     pub min_commit_interval: Option<std::time::Duration>,
 }
 
+#[cfg(feature = "optimize")]
 impl OptimizeOptions {
     /// Configure an [`OptimizeBuilder`] with non-`None` option values.
     fn configure(self, mut builder: OptimizeBuilder) -> OptimizeBuilder {
@@ -41,6 +43,7 @@ impl OptimizeOptions {
     }
 }
 
+#[cfg(feature = "optimize")]
 pub async fn compact(table: DeltaTable, options: OptimizeOptions) -> Result<(), DeltaTableError> {
     let ops = DeltaOps(table);
 
@@ -57,6 +60,7 @@ pub async fn compact(table: DeltaTable, options: OptimizeOptions) -> Result<(), 
     Ok(())
 }
 
+#[cfg(feature = "optimize")]
 pub async fn zorder(
     table: DeltaTable,
     columns: Vec<String>,
@@ -117,24 +121,22 @@ pub async fn vacuum(table: DeltaTable, options: VacuumOptions) -> Result<(), Del
 }
 
 pub fn schema(table: &DeltaTable) -> Result<(), DeltaTableError> {
-    if let Some(schema) = table.schema() {
-        println!("{}", serde_json::to_string_pretty(schema)?);
-    }
-
+    let schema = table.snapshot()?.schema();
+    println!("{}", serde_json::to_string_pretty(schema)?);
     Ok(())
 }
 
 #[derive(Debug, Serialize)]
 struct TableProperties<'a> {
-    version: i64,
+    version: Option<i64>,
     modified: Option<i64>,
     metadata: &'a Metadata,
     protocol: &'a Protocol,
 }
 
 pub async fn details(table: &DeltaTable) -> Result<(), DeltaTableError> {
-    let metadata = table.metadata()?;
-    let protocol = table.protocol()?;
+    let metadata = table.snapshot()?.metadata();
+    let protocol = table.snapshot()?.protocol();
     let mtime = table
         .history(Some(1))
         .await?
@@ -156,11 +158,11 @@ pub fn check_compatibility(table: DeltaTable) -> Result<(), DeltaTableError> {
         return Ok(());
     };
     let mut can_rw: bool = true;
-    if let Err(e) = deltalake::operations::transaction::PROTOCOL.can_read_from(&state) {
+    if let Err(e) = deltalake::kernel::transaction::PROTOCOL.can_read_from(&state) {
         eprintln!("{e}");
         can_rw = false;
     }
-    if let Err(e) = deltalake::operations::transaction::PROTOCOL.can_write_to(&state) {
+    if let Err(e) = deltalake::kernel::transaction::PROTOCOL.can_write_to(&state) {
         eprintln!("{e}");
         can_rw = false;
     }
@@ -201,13 +203,13 @@ pub async fn history(
     Ok(())
 }
 
-pub async fn create_checkpoint(table: &DeltaTable) -> Result<(), ProtocolError> {
-    deltalake::protocol::checkpoints::create_checkpoint(table).await?;
+pub async fn create_checkpoint(table: &DeltaTable) -> Result<(), DeltaTableError> {
+    deltalake::protocol::checkpoints::create_checkpoint(table, None).await?;
     Ok(())
 }
 
-pub async fn expire_logs(table: &DeltaTable) -> Result<(), ProtocolError> {
-    deltalake::protocol::checkpoints::cleanup_metadata(table).await?;
+pub async fn expire_logs(table: &DeltaTable) -> Result<(), DeltaTableError> {
+    deltalake::protocol::checkpoints::cleanup_metadata(table, None).await?;
     Ok(())
 }
 
@@ -223,7 +225,7 @@ pub async fn set_properties(
         .with_raise_if_not_exists(true);
 
     let table = builder.await?;
-    let new_config = &table.metadata()?.configuration;
+    let new_config = &table.snapshot()?.metadata().configuration();
     println!(
         "new properties for table: '{}'\n{}",
         table.table_uri(),

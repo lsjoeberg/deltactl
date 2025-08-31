@@ -3,7 +3,7 @@
 use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
 use deltactl::delta;
-use deltalake::{table::builder::ensure_table_uri, DeltaTableError};
+use deltalake::{DeltaTableError, table::builder::ensure_table_uri};
 use std::collections::HashMap;
 use url::Url;
 
@@ -24,8 +24,10 @@ impl Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    #[cfg(feature = "optimize")]
     /// Optimize a table with Compaction.
     Compact(CompactArgs),
+    #[cfg(feature = "optimize")]
     /// Optimize a table with Z-Ordering.
     #[clap(name = "zorder")]
     ZOrder(ZOrderArgs),
@@ -63,7 +65,9 @@ impl Command {
     /// Get the required URI argument passed to any of the sub-commands.
     const fn get_uri(&self) -> &Url {
         match self {
+            #[cfg(feature = "optimize")]
             Self::Compact(args) => &args.location.url,
+            #[cfg(feature = "optimize")]
             Self::ZOrder(args) => &args.location.url,
             Self::Vacuum(args) => &args.location.url,
             Self::Configure(args) => &args.location.url,
@@ -100,7 +104,7 @@ struct ZOrderArgs {
 struct OptimizeArgs {
     /// Target file size (bytes).
     #[arg(long)]
-    target_size: Option<i64>,
+    target_size: Option<u64>,
     /// Max spill size (bytes).
     #[arg(long)]
     max_spill_size: Option<usize>,
@@ -118,6 +122,7 @@ struct OptimizeArgs {
     // TODO: Partition filters.
 }
 
+#[cfg(feature = "optimize")]
 impl From<OptimizeArgs> for delta::OptimizeOptions {
     fn from(value: OptimizeArgs) -> Self {
         Self {
@@ -240,9 +245,11 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
     };
 
     match cli.cmd {
+        #[cfg(feature = "optimize")]
         Command::Compact(args) => {
             delta::compact(table, args.options.into()).await?;
         }
+        #[cfg(feature = "optimize")]
         Command::ZOrder(args) => {
             delta::zorder(table, args.columns, args.options.into()).await?;
         }
