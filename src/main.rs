@@ -1,6 +1,6 @@
 #![warn(clippy::all, clippy::pedantic, clippy::nursery)]
 
-use anyhow::Context;
+use anyhow::{Context, bail};
 use clap::{Args, Parser, Subcommand};
 use deltactl::delta;
 use deltalake::{DeltaTableError, table::builder::ensure_table_uri};
@@ -11,15 +11,11 @@ use url::Url;
 struct Cli {
     #[command(subcommand)]
     pub cmd: Command,
+    /// URI pointing to the table location.
+    #[arg(long, short, global = true, value_parser = verify_uri, env = "DELTA_TABLE_URI")]
+    uri: Option<Url>,
     #[arg(long, short = 'o', number_of_values = 1, value_parser = parse_key_val)]
     pub storage_options: Option<Vec<(String, String)>>,
-}
-
-impl Cli {
-    /// Get the URI argument passed to a subcommand.
-    const fn get_uri(&self) -> &Url {
-        self.cmd.get_uri()
-    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -36,63 +32,39 @@ enum Command {
     /// Set table properties.
     Configure(ConfigureArgs),
     /// Create a new checkpoint at current table version.
-    Checkpoint(EmptyArgs),
+    Checkpoint,
     /// Delete expired log files before current table version.
     ///
     /// The table log retention is based on the `logRetentionDuration`
     /// property of the table, 30 days by default.
-    Expire(EmptyArgs),
+    Expire,
     /// Print the schema of a table.
-    Schema(EmptyArgs),
+    Schema,
     /// Print the details for a table.
     ///
     /// This command will collect details of the table's current state,
     /// including version, the timestamp of the latest commit, table
     /// metadata, and protocol configuration.
-    Details(EmptyArgs),
+    Details,
     /// Check client read and write compatibility for a table.
     ///
     /// Some Deltalake tables may have protocol features enabled that are not yet
     /// supported by the `delta-rs` client. This command checks whether the current
     /// `delta-rs` implementation supports reading from and writing to the table,
     /// given the table's protocol version tuple and enabled features.
-    CanRW(EmptyArgs),
+    CanRW,
     /// Print the commit history for a table.
     History(HistoryArgs),
 }
 
-impl Command {
-    /// Get the required URI argument passed to any of the sub-commands.
-    const fn get_uri(&self) -> &Url {
-        match self {
-            #[cfg(feature = "optimize")]
-            Self::Compact(args) => &args.location.url,
-            #[cfg(feature = "optimize")]
-            Self::ZOrder(args) => &args.location.url,
-            Self::Vacuum(args) => &args.location.url,
-            Self::Configure(args) => &args.location.url,
-            Self::History(args) => &args.location.url,
-            Self::Checkpoint(args)
-            | Self::Expire(args)
-            | Self::Schema(args)
-            | Self::Details(args)
-            | Self::CanRW(args) => &args.location.url,
-        }
-    }
-}
-
 #[derive(Debug, Args)]
 struct CompactArgs {
-    #[clap(flatten)]
-    location: TableUri,
     #[clap(flatten)]
     options: OptimizeArgs,
 }
 
 #[derive(Debug, Args)]
 struct ZOrderArgs {
-    #[clap(flatten)]
-    location: TableUri,
     /// Comma-separated list of columns to order on.
     #[arg(long, short, required = true, num_args = 1.., value_delimiter = ',')]
     columns: Vec<String>,
@@ -137,8 +109,6 @@ impl From<OptimizeArgs> for delta::OptimizeOptions {
 
 #[derive(Debug, Clone, Args)]
 pub struct VacuumArgs {
-    #[clap(flatten)]
-    location: TableUri,
     /// Override the default retention period for which files are deleted.
     #[arg(long)]
     pub retention_period: Option<humantime::Duration>,
@@ -175,8 +145,6 @@ impl TryFrom<VacuumArgs> for delta::VacuumOptions {
 
 #[derive(Debug, Clone, Args)]
 pub struct ConfigureArgs {
-    #[clap(flatten)]
-    location: TableUri,
     /// Delta table key-value property pairs.
     ///
     /// Repeat the option for each pair: -p a=1 -p b=2
@@ -196,8 +164,6 @@ fn parse_key_val(s: &str) -> Result<(String, String), anyhow::Error> {
 
 #[derive(Debug, Clone, Args)]
 pub struct HistoryArgs {
-    #[clap(flatten)]
-    location: TableUri,
     /// Limit number of commits to show back in time.
     ///
     /// If no limit is specified, the command will fetch information for
@@ -207,19 +173,6 @@ pub struct HistoryArgs {
     /// Display one line per commit in the table history.
     #[arg(long)]
     oneline: bool,
-}
-
-#[derive(Debug, Args)]
-struct EmptyArgs {
-    #[clap(flatten)]
-    location: TableUri,
-}
-
-#[derive(Debug, Clone, Args)]
-struct TableUri {
-    /// URI pointing to the table location.
-    #[arg(value_name = "URI", value_parser = verify_uri)]
-    url: Url,
 }
 
 fn verify_uri(input: &str) -> Result<Url, DeltaTableError> {
@@ -234,7 +187,11 @@ fn verify_uri(input: &str) -> Result<Url, DeltaTableError> {
 }
 
 async fn run(cli: Cli) -> anyhow::Result<()> {
-    let uri = cli.get_uri();
+    // The URI is required to do anything meaningful, but `clap` doesn't
+    // allow global and required options.
+    let Some(uri) = cli.uri else {
+        bail!("Error: no table URI provided.");
+    };
 
     let table = match &cli.storage_options {
         Some(v) => {
@@ -260,11 +217,11 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
             let properties = args.properties.into_iter().collect::<HashMap<_, _>>();
             delta::set_properties(table, properties).await?;
         }
-        Command::Checkpoint(_) => delta::create_checkpoint(&table).await?,
-        Command::Expire(_) => delta::expire_logs(&table).await?,
-        Command::Schema(_) => delta::schema(&table)?,
-        Command::Details(_) => delta::details(&table).await?,
-        Command::CanRW(_) => delta::check_compatibility(table)?,
+        Command::Checkpoint => delta::create_checkpoint(&table).await?,
+        Command::Expire => delta::expire_logs(&table).await?,
+        Command::Schema => delta::schema(&table)?,
+        Command::Details => delta::details(&table).await?,
+        Command::CanRW => delta::check_compatibility(table)?,
         Command::History(args) => delta::history(&table, args.limit, args.oneline).await?,
     }
 
