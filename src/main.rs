@@ -3,7 +3,7 @@
 use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
 use deltactl::delta;
-use deltalake::{table::builder::ensure_table_uri, DeltaTableError};
+use deltalake::{DeltaTableError, table::builder::ensure_table_uri};
 use std::collections::HashMap;
 use url::Url;
 
@@ -100,7 +100,7 @@ struct ZOrderArgs {
 struct OptimizeArgs {
     /// Target file size (bytes).
     #[arg(long)]
-    target_size: Option<i64>,
+    target_size: Option<u64>,
     /// Max spill size (bytes).
     #[arg(long)]
     max_spill_size: Option<usize>,
