@@ -2,12 +2,14 @@ use chrono::DateTime;
 use deltalake::kernel::{Metadata, Protocol};
 use deltalake::{
     DeltaOps, DeltaTable, DeltaTableError,
-    operations::optimize::{OptimizeBuilder, OptimizeType},
 };
+#[cfg(feature = "optimize")]
+use deltalake::operations::optimize::{OptimizeBuilder, OptimizeType};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::io::Write;
 
+#[cfg(feature = "optimize")]
 /// Supported options for `optimize` operations: [`compact`] and [`zorder`].
 pub struct OptimizeOptions {
     pub target_size: Option<u64>,
@@ -17,6 +19,7 @@ pub struct OptimizeOptions {
     pub min_commit_interval: Option<std::time::Duration>,
 }
 
+#[cfg(feature = "optimize")]
 impl OptimizeOptions {
     /// Configure an [`OptimizeBuilder`] with non-`None` option values.
     fn configure(self, mut builder: OptimizeBuilder) -> OptimizeBuilder {
@@ -40,6 +43,7 @@ impl OptimizeOptions {
     }
 }
 
+#[cfg(feature = "optimize")]
 pub async fn compact(table: DeltaTable, options: OptimizeOptions) -> Result<(), DeltaTableError> {
     let ops = DeltaOps(table);
 
@@ -56,6 +60,7 @@ pub async fn compact(table: DeltaTable, options: OptimizeOptions) -> Result<(), 
     Ok(())
 }
 
+#[cfg(feature = "optimize")]
 pub async fn zorder(
     table: DeltaTable,
     columns: Vec<String>,
