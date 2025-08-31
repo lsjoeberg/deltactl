@@ -31,12 +31,12 @@ enum Command {
     Vacuum(VacuumArgs),
     /// Set table properties.
     Configure(ConfigureArgs),
-    /// Create a new checkpoint at current table version.
+    /// Create a new checkpoint at the current table version.
     Checkpoint,
-    /// Delete expired log files before current table version.
+    /// Delete expired log files before the current table version.
     ///
-    /// The table log retention is based on the `logRetentionDuration`
-    /// property of the table, 30 days by default.
+    /// The table log retention policy is based on the
+    /// `logRetentionDuration` property of the table, 30 days by default.
     Expire,
     /// Print the schema of a table.
     Schema,
@@ -86,7 +86,7 @@ struct OptimizeArgs {
     /// Whether to preserve insertion order within files.
     #[arg(long)]
     preserve_insertion_order: bool,
-    /// Min commit interval; e.g. 2min
+    /// Min commit interval; e.g. '2min'.
     ///
     /// Commit transaction incrementally, instead of a single commit.
     #[arg(long)]
