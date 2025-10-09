@@ -155,16 +155,19 @@ pub fn check_compatibility(table: DeltaTable) -> Result<(), DeltaTableError> {
         eprintln!("table has no state");
         return Ok(());
     };
-    let mut can_rw: bool = true;
-    if let Err(e) = deltalake::kernel::transaction::PROTOCOL.can_read_from(&state) {
+    let can_read = if let Err(e) = deltalake::kernel::transaction::PROTOCOL.can_read_from(&state) {
         eprintln!("{e}");
-        can_rw = false;
-    }
-    if let Err(e) = deltalake::kernel::transaction::PROTOCOL.can_write_to(&state) {
+        false
+    } else {
+        true
+    };
+    let can_write = if let Err(e) = deltalake::kernel::transaction::PROTOCOL.can_write_to(&state) {
         eprintln!("{e}");
-        can_rw = false;
-    }
-    if can_rw {
+        false
+    } else {
+        true
+    };
+    if can_read && can_write {
         println!("Table is read and write compatible");
     }
     Ok(())

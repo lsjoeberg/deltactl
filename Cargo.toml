@@ -23,3 +23,33 @@ optimize = ["deltalake/datafusion"]
 strip = true
 lto = true
 codegen-units = 1
+
+[lints.clippy]
+# Pedantic
+pedantic = { level = "warn", priority = -1 }
+cast_precision_loss = "allow"
+default_trait_access = "allow"
+missing_errors_doc = "allow"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+struct_excessive_bools = "allow"
+map_unwrap_or = "allow"
+unnecessary_debug_formatting = "allow"
+implicit_hasher = "allow"
+
+# Nursery
+nursery = { level = "warn", priority = -1 }
+option_if_let_else = "allow"
+
+# Cargo
+wildcard_dependencies = "warn"
+
+# Restriction
+allow_attributes = "warn"
+clone_on_ref_ptr = "warn"
+create_dir = "warn"
+dbg_macro = "warn"
+exit = "warn"
+string_to_string = "warn"
+undocumented_unsafe_blocks = "warn"
+unwrap_used = "warn"
