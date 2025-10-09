@@ -1,10 +1,8 @@
 use chrono::DateTime;
 use deltalake::kernel::{Metadata, Protocol};
-use deltalake::{
-    DeltaOps, DeltaTable, DeltaTableError,
-};
 #[cfg(feature = "optimize")]
 use deltalake::operations::optimize::{OptimizeBuilder, OptimizeType};
+use deltalake::{DeltaOps, DeltaTable, DeltaTableError};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::io::Write;
