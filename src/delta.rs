@@ -2,7 +2,7 @@ use chrono::DateTime;
 use deltalake::kernel::{Metadata, Protocol};
 #[cfg(feature = "optimize")]
 use deltalake::operations::optimize::{OptimizeBuilder, OptimizeType};
-use deltalake::{DeltaOps, DeltaTable, DeltaTableError};
+use deltalake::{DeltaTable, DeltaTableError};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::io::Write;
@@ -43,9 +43,7 @@ impl OptimizeOptions {
 
 #[cfg(feature = "optimize")]
 pub async fn compact(table: DeltaTable, options: OptimizeOptions) -> Result<(), DeltaTableError> {
-    let ops = DeltaOps(table);
-
-    let builder = ops.optimize().with_type(OptimizeType::Compact);
+    let builder = table.optimize().with_type(OptimizeType::Compact);
     let builder = options.configure(builder);
 
     let (table, metrics) = builder.await?;
@@ -88,10 +86,8 @@ pub struct VacuumOptions {
 }
 
 pub async fn vacuum(table: DeltaTable, options: VacuumOptions) -> Result<(), DeltaTableError> {
-    let ops = DeltaOps(table);
-
     // TODO: Allow control of commit behaviour.
-    let mut builder = ops
+    let mut builder = table
         .vacuum()
         .with_enforce_retention_duration(options.enforce_retention)
         .with_dry_run(options.dry_run);
@@ -103,7 +99,7 @@ pub async fn vacuum(table: DeltaTable, options: VacuumOptions) -> Result<(), Del
 
     println!(
         "vacuum operation complete for table: '{}'",
-        table.table_uri()
+        table.table_url()
     );
     println!("dry run: {}", metrics.dry_run);
     println!("files deleted: {}", metrics.files_deleted.len());
@@ -119,14 +115,14 @@ pub async fn vacuum(table: DeltaTable, options: VacuumOptions) -> Result<(), Del
 }
 
 pub fn schema(table: &DeltaTable) -> Result<(), DeltaTableError> {
-    let schema = table.snapshot()?.schema();
-    println!("{}", serde_json::to_string_pretty(schema)?);
+    let schema = &table.snapshot()?.schema();
+    println!("{}", serde_json::to_string_pretty(&schema)?);
     Ok(())
 }
 
 #[derive(Debug, Serialize)]
 struct TableProperties<'a> {
-    version: Option<i64>,
+    version: Option<u64>,
     modified: Option<i64>,
     metadata: &'a Metadata,
     protocol: &'a Protocol,
@@ -138,7 +134,7 @@ pub async fn details(table: &DeltaTable) -> Result<(), DeltaTableError> {
     let mtime = table
         .history(Some(1))
         .await?
-        .pop()
+        .next()
         .and_then(|info| info.timestamp);
     let properties = TableProperties {
         version: table.version(),
@@ -178,7 +174,7 @@ pub async fn history(
     limit: Option<usize>,
     oneline: bool,
 ) -> Result<(), DeltaTableError> {
-    let history = table.history(limit).await?;
+    let history: Vec<_> = table.history(limit).await?.collect();
 
     if !oneline {
         println!("{}", serde_json::to_string_pretty(&history)?);
@@ -218,9 +214,7 @@ pub async fn set_properties(
     table: DeltaTable,
     properties: HashMap<String, String>,
 ) -> Result<(), DeltaTableError> {
-    let ops = DeltaOps(table);
-
-    let builder = ops
+    let builder = table
         .set_tbl_properties()
         .with_properties(properties)
         .with_raise_if_not_exists(true);
@@ -229,7 +223,7 @@ pub async fn set_properties(
     let new_config = &table.snapshot()?.metadata().configuration();
     println!(
         "new properties for table: '{}'\n{}",
-        table.table_uri(),
+        table.table_url(),
         serde_json::to_string_pretty(new_config)?
     );
 
