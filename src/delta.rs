@@ -10,10 +10,8 @@ use std::io::Write;
 #[cfg(feature = "optimize")]
 /// Supported options for `optimize` operations: [`compact`] and [`zorder`].
 pub struct OptimizeOptions {
-    pub target_size: Option<u64>,
-    pub max_spill_size: Option<usize>,
+    pub target_size: Option<std::num::NonZeroU64>,
     pub max_concurrent_tasks: Option<usize>,
-    pub preserve_insertion_order: Option<bool>,
     pub min_commit_interval: Option<std::time::Duration>,
 }
 
@@ -24,14 +22,8 @@ impl OptimizeOptions {
         if let Some(size) = self.target_size {
             builder = builder.with_target_size(size);
         }
-        if let Some(max_spill_size) = self.max_spill_size {
-            builder = builder.with_max_spill_size(max_spill_size);
-        }
         if let Some(max_concurrent_tasks) = self.max_concurrent_tasks {
             builder = builder.with_max_concurrent_tasks(max_concurrent_tasks);
-        }
-        if let Some(preserve_insertion_order) = self.preserve_insertion_order {
-            builder = builder.with_preserve_insertion_order(preserve_insertion_order);
         }
         if let Some(min_commit_interval) = self.min_commit_interval {
             builder = builder.with_min_commit_interval(min_commit_interval);
@@ -49,7 +41,7 @@ pub async fn compact(table: DeltaTable, options: OptimizeOptions) -> Result<(), 
     let (table, metrics) = builder.await?;
     println!(
         "compact operation complete for table: '{}'",
-        table.table_uri()
+        table.table_url()
     );
     println!("{}", serde_json::to_string_pretty(&metrics)?);
 
@@ -62,16 +54,14 @@ pub async fn zorder(
     columns: Vec<String>,
     options: OptimizeOptions,
 ) -> Result<(), DeltaTableError> {
-    let ops = DeltaOps(table);
-
-    let builder = ops.optimize().with_type(OptimizeType::ZOrder(columns));
+    let builder = table.optimize().with_type(OptimizeType::ZOrder(columns));
     let builder = options.configure(builder);
 
     let (table, metrics) = builder.await?;
 
     println!(
         "zorder operation complete for table: '{}'",
-        table.table_uri()
+        table.table_url()
     );
     println!("{}", serde_json::to_string_pretty(&metrics)?);
 
@@ -184,7 +174,7 @@ pub async fn history(
     let mut stdout = std::io::stdout().lock();
     println!(
         "{:<19}  {:>10}  {:<12}",
-        "TIMESTAMP", "READ VER", "OPERATION"
+        "TIMESTAMP", "READ_VER", "OPERATION"
     );
     for c in history {
         let t =

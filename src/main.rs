@@ -1,10 +1,10 @@
 #![warn(clippy::all, clippy::pedantic, clippy::nursery)]
-
 use anyhow::{Context, bail};
 use clap::{Args, Parser, Subcommand};
 use deltactl::delta;
-use deltalake::{DeltaTableError, table::builder::ensure_table_uri};
+use deltalake::{DeltaTable, DeltaTableBuilder, DeltaTableError, table::builder::ensure_table_uri};
 use std::collections::HashMap;
+
 use url::Url;
 
 #[derive(Debug, Parser)]
@@ -21,8 +21,11 @@ struct Cli {
     /// The specific storage provider is derived from the table `uri`. The available options
     /// are documented for each supported provider in the `object_store` crate, and can
     /// be loaded from environment variables.
-    #[arg(long, short = 'o', number_of_values = 1, value_parser = parse_key_val)]
+    #[arg(long, short = 's', number_of_values = 1, value_parser = parse_key_val)]
     pub storage_options: Option<Vec<(String, String)>>,
+    /// Load the table without reading file metadata.
+    #[arg(long, short, global = true)]
+    pub no_files: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -81,18 +84,12 @@ struct ZOrderArgs {
 
 #[derive(Debug, Args)]
 struct OptimizeArgs {
-    /// Target file size (bytes).
+    /// Target file size (bytes). Must be greater than zero.
     #[arg(long)]
-    target_size: Option<u64>,
-    /// Max spill size (bytes).
-    #[arg(long)]
-    max_spill_size: Option<usize>,
+    target_size: Option<std::num::NonZeroU64>,
     /// Max number of concurrent tasks.
     #[arg(long)]
     max_concurrent_tasks: Option<usize>,
-    /// Whether to preserve insertion order within files.
-    #[arg(long)]
-    preserve_insertion_order: bool,
     /// Min commit interval; e.g. '2min'.
     ///
     /// Commit transaction incrementally, instead of a single commit.
@@ -106,9 +103,7 @@ impl From<OptimizeArgs> for delta::OptimizeOptions {
     fn from(value: OptimizeArgs) -> Self {
         Self {
             target_size: value.target_size,
-            max_spill_size: value.max_spill_size,
             max_concurrent_tasks: value.max_concurrent_tasks,
-            preserve_insertion_order: Some(value.preserve_insertion_order), // clap opt is a flag
             min_commit_interval: value.min_commit_interval.map(Into::into),
         }
     }
@@ -175,7 +170,7 @@ pub struct HistoryArgs {
     ///
     /// If no limit is specified, the command will fetch information for
     /// all commits in the table.
-    #[arg(long, short = 'n')]
+    #[arg(long, short = 'l')]
     limit: Option<usize>,
     /// Display one line per commit in the table history.
     #[arg(long)]
@@ -203,9 +198,15 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
     let table = match &cli.storage_options {
         Some(v) => {
             let options = v.clone().into_iter().collect();
-            deltalake::open_table_with_storage_options(uri, options).await?
+            DeltaTable::try_from_url_with_storage_options(uri, options).await?
         }
-        None => deltalake::open_table(uri).await?,
+        None => {
+            let mut builder = DeltaTableBuilder::from_url(uri)?;
+            if cli.no_files {
+                builder = builder.without_files();
+            }
+            builder.load().await?
+        }
     };
 
     match cli.cmd {
