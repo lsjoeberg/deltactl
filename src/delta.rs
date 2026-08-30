@@ -1,13 +1,15 @@
 use chrono::DateTime;
+#[cfg(feature = "datafusion")]
+use deltalake::datafusion::prelude::SessionContext;
 use deltalake::kernel::{Metadata, Protocol};
-#[cfg(feature = "optimize")]
+#[cfg(feature = "datafusion")]
 use deltalake::operations::optimize::{OptimizeBuilder, OptimizeType};
 use deltalake::{DeltaTable, DeltaTableError};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::io::Write;
 
-#[cfg(feature = "optimize")]
+#[cfg(feature = "datafusion")]
 /// Supported options for `optimize` operations: [`compact`] and [`zorder`].
 pub struct OptimizeOptions {
     pub target_size: Option<std::num::NonZeroU64>,
@@ -15,7 +17,7 @@ pub struct OptimizeOptions {
     pub min_commit_interval: Option<std::time::Duration>,
 }
 
-#[cfg(feature = "optimize")]
+#[cfg(feature = "datafusion")]
 impl OptimizeOptions {
     /// Configure an [`OptimizeBuilder`] with non-`None` option values.
     fn configure(self, mut builder: OptimizeBuilder) -> OptimizeBuilder {
@@ -33,7 +35,7 @@ impl OptimizeOptions {
     }
 }
 
-#[cfg(feature = "optimize")]
+#[cfg(feature = "datafusion")]
 pub async fn compact(table: DeltaTable, options: OptimizeOptions) -> Result<(), DeltaTableError> {
     let builder = table.optimize().with_type(OptimizeType::Compact);
     let builder = options.configure(builder);
@@ -48,7 +50,7 @@ pub async fn compact(table: DeltaTable, options: OptimizeOptions) -> Result<(), 
     Ok(())
 }
 
-#[cfg(feature = "optimize")]
+#[cfg(feature = "datafusion")]
 pub async fn zorder(
     table: DeltaTable,
     columns: Vec<String>,
@@ -217,5 +219,19 @@ pub async fn set_properties(
         serde_json::to_string_pretty(new_config)?
     );
 
+    Ok(())
+}
+
+#[cfg(feature = "datafusion")]
+pub async fn head(table: &DeltaTable, limit: Option<u16>) -> Result<(), DeltaTableError> {
+    let ctx = SessionContext::new();
+    ctx.register_table("delta_table", table.table_provider().await?)?;
+    ctx.sql(&format!(
+        "SELECT * FROM delta_table LIMIT {}",
+        limit.unwrap_or(10)
+    ))
+    .await?
+    .show()
+    .await?;
     Ok(())
 }

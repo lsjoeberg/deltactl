@@ -1,5 +1,7 @@
 #![warn(clippy::all, clippy::pedantic, clippy::nursery)]
-use anyhow::{Context, bail};
+#[cfg(feature = "datafusion")]
+use anyhow::bail;
+use anyhow::{Context, Result};
 use clap::{Args, Parser, Subcommand};
 use deltactl::delta;
 use deltalake::{DeltaTable, DeltaTableBuilder, DeltaTableError, table::builder::ensure_table_uri};
@@ -24,16 +26,16 @@ struct Cli {
     #[arg(long, short = 's', number_of_values = 1, value_parser = parse_key_val)]
     pub storage_options: Option<Vec<(String, String)>>,
     /// Load the table without reading file metadata.
-    #[arg(long, short, global = true)]
+    #[arg(long, short = 'f', global = true)]
     pub no_files: bool,
 }
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    #[cfg(feature = "optimize")]
+    #[cfg(feature = "datafusion")]
     /// Optimize a table with Compaction.
     Compact(CompactArgs),
-    #[cfg(feature = "optimize")]
+    #[cfg(feature = "datafusion")]
     /// Optimize a table with Z-Ordering.
     #[clap(name = "zorder")]
     ZOrder(ZOrderArgs),
@@ -65,6 +67,9 @@ enum Command {
     CanRW,
     /// Print the commit history for a table.
     History(HistoryArgs),
+    /// Print top 10 rows
+    #[cfg(feature = "datafusion")]
+    Head(HeadArgs),
 }
 
 #[derive(Debug, Args)]
@@ -98,7 +103,7 @@ struct OptimizeArgs {
     // TODO: Partition filters.
 }
 
-#[cfg(feature = "optimize")]
+#[cfg(feature = "datafusion")]
 impl From<OptimizeArgs> for delta::OptimizeOptions {
     fn from(value: OptimizeArgs) -> Self {
         Self {
@@ -177,6 +182,16 @@ pub struct HistoryArgs {
     oneline: bool,
 }
 
+#[derive(Debug, Clone, Args)]
+pub struct HeadArgs {
+    /// Limit number of rows to show.
+    ///
+    /// If no limit is specified, the command will fetch information for
+    /// all rows in the table.
+    #[arg(long, short = 'n',value_parser = clap::value_parser!(u16).range(1..=100))]
+    rows: Option<u16>,
+}
+
 fn verify_uri(input: &str) -> Result<Url, DeltaTableError> {
     #[cfg(feature = "azure")]
     deltalake::azure::register_handlers(None);
@@ -210,11 +225,11 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
     };
 
     match cli.cmd {
-        #[cfg(feature = "optimize")]
+        #[cfg(feature = "datafusion")]
         Command::Compact(args) => {
             delta::compact(table, args.options.into()).await?;
         }
-        #[cfg(feature = "optimize")]
+        #[cfg(feature = "datafusion")]
         Command::ZOrder(args) => {
             delta::zorder(table, args.columns, args.options.into()).await?;
         }
@@ -231,6 +246,13 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Details => delta::details(&table).await?,
         Command::CanRW => delta::check_compatibility(table)?,
         Command::History(args) => delta::history(&table, args.limit, args.oneline).await?,
+        #[cfg(feature = "datafusion")]
+        Command::Head(args) => {
+            if cli.no_files {
+                bail!("Error: --no-files is incompatible with the head command.");
+            }
+            delta::head(&table, args.rows).await?
+        }
     }
 
     Ok(())
