@@ -24,6 +24,10 @@ strip = true
 lto = true
 codegen-units = 1
 
+[profile.ci]
+inherits = "dev"
+debug = false
+
 [lints.clippy]
 # Pedantic
 pedantic = { level = "warn", priority = -1 }

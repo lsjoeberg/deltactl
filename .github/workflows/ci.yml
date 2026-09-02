@@ -1,0 +1,49 @@
+name: Rust CI
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'Cargo.*'
+      - 'src/**'
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'Cargo.*'
+      - 'src/**'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: moonrepo/setup-rust@v1
+      - run: cargo check --profile ci --all-features
+
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: moonrepo/setup-rust@v1
+        with:
+          components: rustfmt
+      - run: cargo fmt --all --check
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: moonrepo/setup-rust@v1
+        with:
+          components: clippy
+      - run: cargo clippy --profile ci --all-features --no-deps -- -D warnings
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: moonrepo/setup-rust@v1
+      - run: cargo test --profile ci --all-features
