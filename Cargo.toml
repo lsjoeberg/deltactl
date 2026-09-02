@@ -24,6 +24,10 @@ strip = true
 lto = true
 codegen-units = 1
 
+[profile.ci]
+inherits = "dev"
+debug = false
+
 [lints.clippy]
 # Pedantic
 pedantic = { level = "warn", priority = -1 }
@@ -50,6 +54,5 @@ clone_on_ref_ptr = "warn"
 create_dir = "warn"
 dbg_macro = "warn"
 exit = "warn"
-string_to_string = "warn"
 undocumented_unsafe_blocks = "warn"
 unwrap_used = "warn"
